@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Route Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#f0f4f8;color:#1e293b;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#e2e8f0}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+
+/* TOP BAR */
+#topbar{background:#ffffff;border-bottom:1px solid #e2e8f0;padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+#topbar h1{font-size:15px;font-weight:600;color:#4f46e5;letter-spacing:.5px}
+#topbar .badge{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:3px 10px;font-size:11px;color:#64748b}
+
+/* MAIN LAYOUT */
+#main{display:flex;flex:1;overflow:hidden}
+
+/* SIDEBAR */
+#sidebar{width:320px;background:#ffffff;border-right:1px solid #e2e8f0;display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;box-shadow:2px 0 8px rgba(0,0,0,.04)}
+#sidebar-scroll{flex:1;overflow-y:auto;padding:14px}
+.section{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-bottom:10px}
+.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:#6366f1;margin-bottom:10px}
+
+/* DEPOT CARDS */
+.depot-card{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:10px;margin-bottom:8px;cursor:pointer;transition:border-color .2s,box-shadow .2s;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.depot-card:hover{border-color:#6366f1;box-shadow:0 2px 8px rgba(99,102,241,.12)}
+.depot-card.active{border-color:#6366f1;background:#eef2ff}
+.depot-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.depot-badge{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0}
+.depot-badge.a{background:#4f46e5;color:#fff}
+.depot-badge.b{background:#7c3aed;color:#fff}
+.depot-name{font-size:13px;font-weight:500;color:#1e293b;flex:1}
+.depot-coords{font-size:10px;color:#94a3b8;font-family:monospace}
+.depot-set-btn{font-size:10px;background:#f1f5f9;border:1px solid #e2e8f0;color:#64748b;padding:2px 8px;border-radius:4px;cursor:pointer;transition:all .2s}
+.depot-set-btn:hover,.depot-set-btn.picking{background:#4f46e5;border-color:#6366f1;color:#fff}
+
+/* STOPS */
+.stop-item{background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;padding:8px 10px;margin-bottom:6px;display:flex;align-items:center;gap:8px;cursor:grab;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.stop-item:active{cursor:grabbing}
+.stop-num{width:20px;height:20px;border-radius:50%;background:#f59e0b;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.stop-name{flex:1;font-size:12px;color:#334155}
+.stop-coords{font-size:10px;color:#94a3b8;font-family:monospace}
+.stop-del{background:none;border:none;color:#cbd5e1;cursor:pointer;font-size:14px;padding:2px 4px;border-radius:4px;transition:color .2s}
+.stop-del:hover{color:#ef4444}
+.stop-assigned{font-size:9px;padding:1px 5px;border-radius:3px;font-weight:600}
+.stop-assigned.a{background:#e0e7ff;color:#4f46e5}
+.stop-assigned.b{background:#ede9fe;color:#7c3aed}
+
+/* FORM ELEMENTS */
+label{font-size:11px;color:#64748b;display:block;margin-bottom:3px}
+input[type=text],input[type=number],select{width:100%;background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;color:#1e293b;padding:6px 8px;font-size:12px;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
+input:focus,select:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+select option{background:#ffffff;color:#1e293b}
+
+/* BUTTONS */
+.btn{width:100%;padding:9px;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;letter-spacing:.3px}
+.btn-primary{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;box-shadow:0 2px 8px rgba(99,102,241,.3)}
+.btn-primary:hover{background:linear-gradient(135deg,#4338ca,#6d28d9);transform:translateY(-1px);box-shadow:0 4px 14px rgba(99,102,241,.4)}
+.btn-primary:disabled{background:#e2e8f0;color:#94a3b8;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-secondary{background:#f8fafc;border:1px solid #e2e8f0;color:#64748b;padding:7px}
+.btn-secondary:hover{border-color:#6366f1;color:#4f46e5;background:#eef2ff}
+
+
+/* ROUTING MODE TOGGLE */
+.mode-toggle{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;margin-bottom:8px}
+.mode-btn{padding:7px;font-size:11px;font-weight:600;cursor:pointer;background:#f8fafc;border:none;color:#64748b;font-family:'Inter',sans-serif;transition:all .2s;letter-spacing:.2px}
+.mode-btn.active{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff}
+.mode-btn:first-child{border-right:1px solid #e2e8f0}
+.source-select-row{display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px;background:#eef2ff;border-radius:8px;border:1px solid #c7d2fe}
+.source-select-row label{font-size:11px;font-weight:600;color:#4f46e5;margin:0;white-space:nowrap}
+.source-select-row select{flex:1;font-size:11px;padding:4px 6px}
+.depot-card.active-source{border-color:#4f46e5;background:#eef2ff;box-shadow:0 0 0 2px rgba(99,102,241,.2)}
+.active-source-badge{font-size:9px;background:#4f46e5;color:#fff;border-radius:4px;padding:1px 5px;font-weight:700;margin-left:auto}
+
+/* MAP */
+#map-container{flex:1;position:relative;display:flex;flex-direction:column}
+#map{flex:1}
+
+/* MODE BANNER */
+#mode-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(79,70,229,.9);color:#fff;padding:6px 18px;border-radius:20px;font-size:12px;font-weight:600;display:none;pointer-events:none;backdrop-filter:blur(4px)}
+
+/* ANALYTICS DRAWER */
+#analytics{background:#ffffff;border-top:1px solid #e2e8f0;transition:height .3s ease;overflow:hidden;flex-shrink:0;box-shadow:0 -1px 6px rgba(0,0,0,.04)}
+#analytics-toggle{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;cursor:pointer;user-select:none;background:#ffffff}
+#analytics-toggle span{font-size:12px;font-weight:600;color:#6366f1;text-transform:uppercase;letter-spacing:.6px}
+#analytics-toggle .chevron{color:#94a3b8;transition:transform .3s;font-size:14px}
+#analytics-toggle.open .chevron{transform:rotate(180deg)}
+#analytics-content{padding:0 16px 12px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.metric-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px;text-align:center}
+.metric-val{font-size:20px;font-weight:700;color:#4f46e5}
+.metric-label{font-size:10px;color:#94a3b8;margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+
+/* LEGS TABLE */
+#legs-section{padding:0 16px 12px;display:none}
+.legs-table{width:100%;border-collapse:collapse;font-size:11px}
+.legs-table th{background:#f1f5f9;color:#6366f1;padding:6px 8px;text-align:left;font-weight:600;text-transform:uppercase;letter-spacing:.4px;border-bottom:1px solid #e2e8f0}
+.legs-table td{padding:5px 8px;border-bottom:1px solid #f1f5f9;color:#64748b}
+.legs-table tr:hover td{background:#f8fafc}
+.tag-valid{color:#16a34a;font-weight:600}
+.tag-invalid{color:#dc2626;font-weight:600}
+.tag-depot{color:#6366f1;font-weight:600}
+
+/* STATUS */
+#status-bar{position:absolute;bottom:10px;right:10px;z-index:1000;background:rgba(255,255,255,.95);border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;font-size:11px;color:#64748b;backdrop-filter:blur(4px);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.spinner{display:inline-block;width:10px;height:10px;border:2px solid #e2e8f0;border-top-color:#6366f1;border-radius:50%;animation:spin .7s linear infinite;margin-right:5px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* CARBON EMISSION WIDGET */
+#co2-widget{position:absolute;top:10px;right:10px;z-index:1000;background:rgba(255,255,255,.97);border:1px solid #bbf7d0;border-radius:14px;padding:10px 14px;min-width:130px;box-shadow:0 4px 20px rgba(22,163,74,.15);backdrop-filter:blur(6px);transition:all .4s ease;cursor:default}
+#co2-widget.active{border-color:#16a34a;box-shadow:0 4px 24px rgba(22,163,74,.3)}
+.co2-header{display:flex;align-items:center;gap:5px;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:#16a34a;margin-bottom:4px}
+.co2-leaf{font-size:14px;animation:pulse-leaf 2.5s ease-in-out infinite}
+@keyframes pulse-leaf{0%,100%{transform:scale(1)}50%{transform:scale(1.18)}}
+.co2-value{font-size:22px;font-weight:800;color:#15803d;line-height:1;font-family:'Inter',sans-serif;letter-spacing:-0.5px}
+.co2-unit{font-size:10px;color:#4ade80;font-weight:600;margin-left:2px}
+.co2-sub{font-size:9px;color:#94a3b8;margin-top:3px;letter-spacing:.3px}
+.co2-bar{height:3px;background:#dcfce7;border-radius:2px;margin-top:6px;overflow:hidden}
+.co2-bar-fill{height:100%;background:linear-gradient(90deg,#4ade80,#16a34a);border-radius:2px;width:0%;transition:width .8s ease}
+
+.add-stop-btn{width:100%;padding:6px;background:#ffffff;border:1px dashed #cbd5e1;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer;transition:all .2s;text-align:center;margin-top:4px}
+.add-stop-btn:hover{border-color:#6366f1;color:#4f46e5;background:#eef2ff}
+
+/* Notification */
+#notif{position:fixed;top:60px;right:16px;z-index:9999;display:flex;flex-direction:column;gap:6px}
+.notif-item{background:#ffffff;border-left:3px solid #6366f1;border-radius:6px;padding:8px 12px;font-size:12px;color:#1e293b;max-width:280px;animation:slideIn .3s ease;box-shadow:0 4px 16px rgba(0,0,0,.1)}
+.notif-item.success{border-color:#16a34a}
+.notif-item.error{border-color:#dc2626}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>🚛 Route Optimizer</h1>
+  <div style="display:flex;gap:8px;align-items:center">
+    <span class="badge" id="gh-status">GraphHopper: Connecting…</span>
+    <span class="badge" id="mode-label">Click map to place stops</span>
+  </div>
+</div>
+
+<div id="main">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div id="sidebar-scroll">
+
+      <!-- ROUTING MODE -->
+      <div class="section">
+        <div class="section-title">Routing Mode</div>
+        <div class="mode-toggle">
+          <button class="mode-btn active" id="mode-dual" onclick="setRoutingMode('dual')">⇌ Dual Source</button>
+          <button class="mode-btn" id="mode-single" onclick="setRoutingMode('single')">→ Single Source</button>
+        </div>
+        <div class="source-select-row" id="single-source-row" style="display:none">
+          <label>Source:</label>
+          <select id="single-depot-select" onchange="onSingleDepotChange()">
+            <option value="a">A — SKODA Pune</option>
+            <option value="b">B — SKODA CSN</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- DEPOTS -->
+      <div class="section">
+        <div class="section-title">Depots</div>
+        <div class="depot-card" id="depot-a-card">
+          <div class="depot-header">
+            <span class="depot-badge a">A</span>
+            <span class="depot-name">SKODA Pune</span>
+            <button class="depot-set-btn" id="set-depot-a" onclick="startPickDepot('a')">Set on Map</button>
+          </div>
+          <div class="depot-coords" id="depot-a-coords">18.7473, 73.8132</div>
+        </div>
+        <div class="depot-card" id="depot-b-card">
+          <div class="depot-header">
+            <span class="depot-badge b">B</span>
+            <span class="depot-name">SKODA CSN</span>
+            <button class="depot-set-btn" id="set-depot-b" onclick="startPickDepot('b')">Set on Map</button>
+          </div>
+          <div class="depot-coords" id="depot-b-coords">19.8736, 75.4875</div>
+        </div>
+      </div>
+
+      <!-- DELIVERY STOPS -->
+      <div class="section">
+        <div class="section-title">Delivery Stops <span id="stop-count" style="color:#f59e0b">(0/9)</span></div>
+        <div id="stop-list"></div>
+        <button class="add-stop-btn" id="add-stop-btn" onclick="startPickStop()" style="margin-bottom:8px">+ Click to Add Stop on Map</button>
+        <div style="font-size:10px; color:#94a3b8; text-align:center; margin-bottom:4px; font-weight:600; letter-spacing:0.5px;">OR ADD MANUALLY</div>
+        <div class="row2">
+          <div><input type="number" id="manual-lat" placeholder="Latitude" step="any"></div>
+          <div><input type="number" id="manual-lon" placeholder="Longitude" step="any"></div>
+        </div>
+        <button class="add-stop-btn" onclick="addManualStop()" style="margin-top:4px">+ Add via Coordinates</button>
+      </div>
+
+      <!-- TRUCK PROFILE -->
+      <div class="section">
+        <div class="section-title">Truck Profile</div>
+        <div style="margin-bottom:8px">
+          <label>Vehicle Profile</label>
+          <select id="profile-select" onchange="onProfileChange()">
+            <option value="truck">Truck (Standard)</option>
+            <option value="heavy_truck">Heavy Truck</option>
+            <option value="hazmat_truck">Hazmat Truck</option>
+            <option value="canopy_truck">Canopy Truck</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div><label>Height (m)</label><input type="number" id="height" value="4.0" step="0.1" min="0"></div>
+          <div><label>Weight (t)</label><input type="number" id="weight" value="20.0" step="0.5" min="0"></div>
+        </div>
+        <div class="row2" style="margin-top:8px">
+          <div><label>Length (m)</label><input type="number" id="length" value="0" step="0.1" min="0"></div>
+          <div><label>Width (m)</label><input type="number" id="width" value="0" step="0.1" min="0"></div>
+        </div>
+      </div>
+
+      <!-- COST PARAMS -->
+      <div class="section">
+        <div class="section-title">Cost Parameters</div>
+        <div class="row2">
+          <div><label>Fuel Price (₹/L)</label><input type="number" id="c-fuel-price" value="102.0" step="0.5" min="0"></div>
+          <div><label>Avg Speed (km/h)</label><input type="number" id="c-avg-speed" value="60" step="5" min="1"></div>
+        </div>
+        <div class="row2" style="margin-top:8px">
+          <div><label>Cost per km (₹/km)</label><input type="number" id="c-cost-per-km" value="2.5" step="0.1" min="0"></div>
+          <div><label>Fuel Efficiency (km/L)</label><input type="number" id="c-fuel-efficiency" value="3.5" step="0.1" min="0.1" title="Vehicle fuel efficiency. Lower = more fuel used. Typical truck: 3–4 km/L"></div>
+        </div>
+      </div>
+
+
+      <!-- OPTIMIZE -->
+      <button class="btn btn-primary" id="optimize-btn" onclick="runOptimization()" style="margin-top:4px">
+        Optimize Routes
+      </button>
+      <button class="btn btn-secondary" style="margin-top:8px" onclick="clearAll()">Clear All</button>
+
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div id="map-container">
+    <div id="mode-banner" id="mode-banner">📍 Click map to place point</div>
+    <div id="map"></div>
+    <div id="status-bar">Ready</div>
+
+    <!-- CO₂ EMISSION WIDGET -->
+    <div id="co2-widget">
+      <div class="co2-header">
+        <span class="co2-leaf">🍃</span>
+        Carbon Emission
+      </div>
+      <div>
+        <span class="co2-value" id="co2-value">—</span>
+        <span class="co2-unit" id="co2-unit"></span>
+      </div>
+      <div class="co2-sub" id="co2-sub">Run optimization to calculate</div>
+      <div class="co2-bar"><div class="co2-bar-fill" id="co2-bar-fill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ANALYTICS DRAWER -->
+<div id="analytics">
+  <div id="analytics-toggle" onclick="toggleAnalytics()">
+    <span>Route Analytics</span>
+    <span class="chevron">▲</span>
+  </div>
+  <div id="analytics-content" style="display:none">
+    <div class="metric-card"><div class="metric-val" id="m-dist">—</div><div class="metric-label">Total km</div></div>
+    <div class="metric-card"><div class="metric-val" id="m-time">—</div><div class="metric-label">Total hrs</div></div>
+    <div class="metric-card"><div class="metric-val" id="m-fuel">—</div><div class="metric-label">Fuel (L)</div></div>
+  </div>
+  <div id="legs-section">
+    <table class="legs-table">
+      <thead><tr><th>From</th><th>To</th><th>Dist (km)</th><th>Time (h)</th><th>Fuel (L)</th></tr></thead>
+      <tbody id="legs-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="notif"></div>
+
+
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

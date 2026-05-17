@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  graphhopper:
+    build: .
+    container_name: skoda_graphhopper_12
+    ports:
+      - "8989:8989"
+    volumes:
+      # Mount the OSM map data
+      - ./data/india-latest.osm.pbf:/data/india-latest.osm.pbf
+      # Mount the configuration file
+      - ./config.yml:/data/config.yml
+      # Mount the graph cache directory so it doesn't rebuild on every container start
+      - ./graph-cache:/data/graph-cache
+    environment:
+      # Adjust memory allocation as needed based on system RAM
+      - JAVA_OPTS=-Xmx12g -Xms12g
+    command: ["--input", "/data/india-latest.osm.pbf", "--config", "/data/config.yml"]
